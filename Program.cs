@@ -22,6 +22,10 @@ namespace ForwardUDP
 
             bool run_console = args.GetCommandLineArg("debug") != null || args.GetCommandLineArg("console") != null;
 
+            int loglevel;
+            if ( !int.TryParse(args.GetCommandLineArg("loglevel"), out loglevel) )
+                loglevel = 7;
+            Log.LogLevel = loglevel;
 
 
             if (run_console)
@@ -32,7 +36,7 @@ namespace ForwardUDP
                     Console.CancelKeyPress += Console_CancelKeyPress;
 
                     service.ConsoleStart(args.Skip(1).ToArray());
-                    Log.LogMsg(3, "Waiting for event : ");
+                    Log.Msg(3, "Waiting for event : ");
                     ms_exitEvent.WaitOne();
 
                     //Console.CancelKeyPress -= Console_CancelKeyPress;
@@ -47,7 +51,7 @@ namespace ForwardUDP
 
         private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
         {
-            Log.LogMsg(3, "Cancel key press detected, setting event to terminte proccess. ");
+            Log.Msg(3, "Cancel key press detected, setting event to terminte proccess. ");
             ms_exitEvent.Set();
         }
     }

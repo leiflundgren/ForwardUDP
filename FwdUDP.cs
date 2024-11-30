@@ -16,6 +16,7 @@ namespace ForwardUDP
         {
             public IPEndPoint IPEndPoint;
             public UdpClient socket;
+            public Task<UdpReceiveResult> ReceiveTask;
         }
 
         private List<Target> targets;
@@ -23,6 +24,7 @@ namespace ForwardUDP
 
         private Target local;
         private bool disposedValue;
+        private readonly TaskCompletionSource<UdpReceiveResult> never_complet = new TaskCompletionSource<UdpReceiveResult>();
 
         public FwdUDP(IPEndPoint listenTo, IPEndPoint target)
             : this(listenTo, new[] { target })
@@ -34,12 +36,14 @@ namespace ForwardUDP
             if (targets is null) throw new ArgumentNullException(nameof(targets));
             if ( targets.Count == 0) throw new ArgumentOutOfRangeException(nameof(targets));
 
+
             this.local = new Target { IPEndPoint = listenTo, socket = new UdpClient(listenTo) };
             this.targets = targets.ToList().ConvertAll(ep => 
                 new Target
                 {
                     IPEndPoint = ep,
                     socket = new UdpClient(ep.AddressFamily),
+                    ReceiveTask = never_complet.Task,
                 }
             );
 
@@ -49,17 +53,27 @@ namespace ForwardUDP
 
         private async Task RecieveData()
         {
-            List<Target> targets = new List<Target> { this.local };
-            targets.AddRange(this.targets);
+            List<Target> sockets = new List<Target> { this.local };
+            sockets.AddRange(this.targets);
+
+            this.local.ReceiveTask = this.local.socket.ReceiveAsync();
+
+            Log.Msg(4, $"Listening to {local.IPEndPoint}");
 
             for (; ; )
             {
+
+                Task<UdpReceiveResult> readTask = await Task.WhenAny(sockets.ConvertAll(t=>t.ReceiveTask));
+                int idx = sockets.FindIndex(t => ReferenceEquals(readTask, t.ReceiveTask));
+
+                Target readSocket = sockets[idx];
+
                 IPEndPoint recv_from;
                 int recv_bytes;
                 byte[] buf;
                 try
                 {
-                    UdpReceiveResult read = await local.socket.ReceiveAsync();
+                    UdpReceiveResult read = readTask.Result;
                     recv_from = read.RemoteEndPoint;
                     recv_bytes = read.Buffer.Length;
                     buf = read.Buffer;
@@ -70,14 +84,28 @@ namespace ForwardUDP
                     break;
                 }
 
-                Log.LogMsg(4, $"Received {recv_bytes} bytes from {recv_from}");
 
-                foreach ( IPEndPoint target in send_to )
+                // new read-task, since previous completed
+                readSocket.ReceiveTask = readSocket.socket.ReceiveAsync();
+
+                Log.Msg(4, $"Received {recv_bytes} bytes from {recv_from}");
+
+                List<Target> send_to = idx!=0 ? new List<Target> { local } : this.targets;
+
+                foreach ( Target target in send_to )
                 {
                     try
                     {
-                        udp.Send(buf, recv_bytes, target);
-                        Log.LogMsg(6, $"sent data to {target}");
+                        Log.Msg(6, $"sending {recv_bytes} bytes to {target.IPEndPoint}");
+
+                        bool was_bound = target.socket.Client.IsBound;
+
+                        target.socket.Send(buf, recv_bytes, target.IPEndPoint);
+                        if (target.socket.Client.IsBound && (ReferenceEquals(never_complet.Task, target.ReceiveTask) || target.ReceiveTask.IsCompleted))
+                        {
+                            Log.Msg(7, $"Starting receive on {target.IPEndPoint} / {target.socket.Client}");
+                            target.ReceiveTask = target.socket.ReceiveAsync();
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -85,6 +113,7 @@ namespace ForwardUDP
                     }
 
                 }
+
             }
         }
 
@@ -92,14 +121,15 @@ namespace ForwardUDP
         {
             if (!disposedValue)
             {
+                disposedValue = true;
+
                 if (disposing)
                 {
-                    udp.Close();
+                    try { local.socket.Close(); } catch { }
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
                 // TODO: set large fields to null
-                disposedValue = true;
             }
         }
 

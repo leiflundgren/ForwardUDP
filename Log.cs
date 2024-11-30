@@ -39,11 +39,11 @@ namespace ForwardUDP
                         sb.AppendLine(e0.StackTrace);
                 }
 
-                LogMsg(loglevel, sb.ToString(), memberName, sourceFilePath, sourceLineNumber);
+                Msg(loglevel, sb.ToString(), memberName, sourceFilePath, sourceLineNumber);
             }
         }
 
-        public static void LogMsg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+        public static void Msg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
             ConsoleLog(msg, loglevel, memberName, sourceFilePath, sourceLineNumber);
         }
