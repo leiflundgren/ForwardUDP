@@ -14,9 +14,16 @@ namespace ForwardUDP
 
         private class Target
         {
-            public IPEndPoint IPEndPoint;
+            public IPEndPoint Local;
+            public IPEndPoint Remote;
             public UdpClient socket;
+            public bool IsServer;
             public Task<UdpReceiveResult> ReceiveTask;
+
+            public override string ToString()
+            {
+                return $"Remote:{Remote} IsBound:{socket?.Client.IsBound ?? false} ";
+            }
         }
 
         private List<Target> targets;
@@ -37,13 +44,14 @@ namespace ForwardUDP
             if ( targets.Count == 0) throw new ArgumentOutOfRangeException(nameof(targets));
 
 
-            this.local = new Target { IPEndPoint = listenTo, socket = new UdpClient(listenTo) };
+            this.local = new Target { Local = listenTo, socket = new UdpClient(listenTo), IsServer = true };
             this.targets = targets.ToList().ConvertAll(ep => 
                 new Target
                 {
-                    IPEndPoint = ep,
-                    socket = new UdpClient(ep.AddressFamily),
+                    Remote = ep,
+                    socket = null,
                     ReceiveTask = never_complet.Task,
+                    IsServer = false,
                 }
             );
 
@@ -58,7 +66,7 @@ namespace ForwardUDP
 
             this.local.ReceiveTask = this.local.socket.ReceiveAsync();
 
-            Log.Msg(4, $"Listening to {local.IPEndPoint}");
+            Log.Msg(4, $"Listening to {local.Local}");
 
             for (; ; )
             {
@@ -77,6 +85,8 @@ namespace ForwardUDP
                     recv_from = read.RemoteEndPoint;
                     recv_bytes = read.Buffer.Length;
                     buf = read.Buffer;
+
+                    readSocket.Remote = recv_from;
                 }
                 catch (Exception ex)
                 {
@@ -96,20 +106,31 @@ namespace ForwardUDP
                 {
                     try
                     {
-                        Log.Msg(6, $"sending {recv_bytes} bytes to {target.IPEndPoint}");
+                        IPEndPoint targetEP = target.Remote;
 
+                        Log.Msg(6, $"sending {recv_bytes} bytes to {target} --> {targetEP}");
+
+                        if (target.socket == null)
+                            target.socket = new UdpClient(0, targetEP.AddressFamily);
                         bool was_bound = target.socket.Client.IsBound;
+                        bool was_completed = target.ReceiveTask.IsCompleted;
 
-                        target.socket.Send(buf, recv_bytes, target.IPEndPoint);
-                        if (target.socket.Client.IsBound && (ReferenceEquals(never_complet.Task, target.ReceiveTask) || target.ReceiveTask.IsCompleted))
+                        target.socket.Send(buf, recv_bytes, targetEP);
+
+                        if (target.socket.Client.IsBound && (target.ReceiveTask == never_complet.Task || target.ReceiveTask.IsCompleted))
                         {
-                            Log.Msg(7, $"Starting receive on {target.IPEndPoint} / {target.socket.Client}");
+                            Log.Msg(7, $"Starting receive on {target}");
                             target.ReceiveTask = target.socket.ReceiveAsync();
                         }
+                        else
+                        {
+                            Log.Msg(7, $"Already ongoing receive on {target}, task {target.ReceiveTask.Id} state {target.ReceiveTask.Status} ");
+                        }
+
                     }
                     catch (Exception ex)
                     {
-                        Log.Exception(ex, $"Failed to send data to {target}");
+                        Log.Exception(ex, $"Failed to send data to {target}", logCallStack:!(ex is SocketException));
                     }
 
                 }
