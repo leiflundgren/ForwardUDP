@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>ForwardUDP</RootNamespace>
     <AssemblyName>ForwardUDP</AssemblyName>
     <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
@@ -32,6 +32,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>ForwardUDP.Program</StartupObject>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
@@ -56,16 +59,13 @@
     <Compile Include="Components\Extensions.cs" />
     <Compile Include="FwdUDP.cs" />
     <Compile Include="Log.cs" />
-    <Compile Include="Properties\Settings1.Designer.cs">
+    <Compile Include="Properties\MySettings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <DependentUpon>Settings1.settings</DependentUpon>
+      <DependentUpon>MySettings.settings</DependentUpon>
     </Compile>
     <Compile Include="UdpForwardService.cs">
       <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="UdpForwardService.Designer.cs">
-      <DependentUpon>UdpForwardService.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -74,9 +74,9 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
-    <None Include="Properties\Settings1.settings">
+    <None Include="Properties\MySettings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings1.Designer.cs</LastGenOutput>
+      <LastGenOutput>MySettings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <ItemGroup />

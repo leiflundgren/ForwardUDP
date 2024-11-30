@@ -9,12 +9,21 @@ using System.Threading.Tasks;
 
 namespace ForwardUDP
 {
-    public class FwdUDP
+    public class FwdUDP : IDisposable
     {
-        public IPEndPoint ListenTo { get; }
-        public List<IPEndPoint> Targets { get; }
 
-        private readonly UdpClient udp;
+        private class Target
+        {
+            public IPEndPoint IPEndPoint;
+            public UdpClient socket;
+        }
+
+        private List<Target> targets;
+        
+
+        private Target local;
+        private bool disposedValue;
+
         public FwdUDP(IPEndPoint listenTo, IPEndPoint target)
             : this(listenTo, new[] { target })
         { }
@@ -25,41 +34,49 @@ namespace ForwardUDP
             if (targets is null) throw new ArgumentNullException(nameof(targets));
             if ( targets.Count == 0) throw new ArgumentOutOfRangeException(nameof(targets));
 
-            ListenTo = listenTo;
-            Targets = targets.ToList();
+            this.local = new Target { IPEndPoint = listenTo, socket = new UdpClient(listenTo) };
+            this.targets = targets.ToList().ConvertAll(ep => 
+                new Target
+                {
+                    IPEndPoint = ep,
+                    socket = new UdpClient(ep.AddressFamily),
+                }
+            );
 
-
-            udp = new UdpClient(listenTo);
 
             RecieveData().Forget();
         }
 
         private async Task RecieveData()
         {
-            IPEndPoint clientEndPoint = null;
+            List<Target> targets = new List<Target> { this.local };
+            targets.AddRange(this.targets);
 
             for (; ; )
             {
-                UdpReceiveResult read = await udp.ReceiveAsync();
-
-                Log.LogMsg(4, $"Received {read.Buffer?.Length} bytes from {read.RemoteEndPoint}");
-
-                bool from_a_target = Targets.Any(t => read.RemoteEndPoint.Equals(t) );
-
-                if ( !from_a_target && !read.RemoteEndPoint.Equals(clientEndPoint) )
+                IPEndPoint recv_from;
+                int recv_bytes;
+                byte[] buf;
+                try
                 {
-                    clientEndPoint = read.RemoteEndPoint;
-                    Log.LogMsg(3, $"New client {clientEndPoint} connected");
+                    UdpReceiveResult read = await local.socket.ReceiveAsync();
+                    recv_from = read.RemoteEndPoint;
+                    recv_bytes = read.Buffer.Length;
+                    buf = read.Buffer;
+                }
+                catch (Exception ex)
+                {
+                    Log.Exception(ex, $"Failed to receive data. Terminating", false, 2);
+                    break;
                 }
 
-                ICollection<IPEndPoint> send_to = from_a_target ? new[]{ clientEndPoint }.StaticCast<ICollection<IPEndPoint>>() : Targets.StaticCast<ICollection<IPEndPoint>>() ;
-
+                Log.LogMsg(4, $"Received {recv_bytes} bytes from {recv_from}");
 
                 foreach ( IPEndPoint target in send_to )
                 {
                     try
                     {
-                        udp.Send(read.Buffer, read.Buffer.Length, target);
+                        udp.Send(buf, recv_bytes, target);
                         Log.LogMsg(6, $"sent data to {target}");
                     }
                     catch (Exception ex)
@@ -69,6 +86,35 @@ namespace ForwardUDP
 
                 }
             }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    udp.Close();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~FwdUDP()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }
