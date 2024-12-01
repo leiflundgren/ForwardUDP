@@ -1,41 +1,127 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Reflection;
-using System.Threading;
+using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic;
+using ZLogger;
 
-namespace ForwardUDP
+namespace ForwardUDP.Components
 {
     public class Log : IDisposable
     {
-        public static int LogLevel = 5;
-        public static int EntryExitLogLevel = 5;
+        public static int LogFilterLevel => Instance?.logFilterLevel ?? 0;
+        public static int EntryExitLogLevel => Instance?.entryExitLogLevel ?? 100;
 
+
+        private int logFilterLevel = 5;
+        private int entryExitLogLevel = 5;
 
         private bool disposedValue;
+        private Microsoft.Extensions.Logging.ILogger? logger;
 
-        public static void Init()
+        private static Log? Instance;
+
+        public static void Init(int loglevel, string logname, string? logPath)
         {
+            Instance = new Log();
+
+            Instance.logFilterLevel = loglevel;
+
+            using var factory = LoggerFactory.Create(logging =>
+            {
+                logging.SetMinimumLevel(LogLevel.Trace);
+
+                // Add ZLogger provider to ILoggingBuilder
+                logging.AddZLoggerConsole();
+
+                // Output Structured Logging, setup options
+                // logging.AddZLoggerConsole(options => options.UseJsonFormatter());
+
+                logging.AddZLoggerRollingFile(options =>
+                 {
+                     // File name determined by parameters to be rotated
+                     options.FilePathSelector = (timestamp, sequenceNumber) => Path.Combine(logPath, $"{logname}_{timestamp.ToLocalTime():yyMMdd}_{sequenceNumber:000}.log");
+
+                     // The period of time for which you want to rotate files at time intervals.
+                     options.RollingInterval = ZLogger.Providers.RollingInterval.Day;
+
+                     // Limit of size if you want to rotate by file size. (KB)
+                     options.RollingSizeKB = 100*1024;
+                     options.CaptureThreadInfo = true;
+                 });
+            });
+
+            Instance.logger = factory.CreateLogger("Program");
+
+            bool be = Instance.logger.IsEnabled(LogLevel.Error);
+            bool bt = Instance.logger.IsEnabled(LogLevel.Trace);
+        }
+
+        public static void Shutdown()
+        {
+            if (Instance is null) return;
+            if (Instance.logger is null) return;
+
             
         }
 
-        //public static NLog.LogLevel TranslateLogLevel(int lvl)
-        //{
-        //    switch (lvl)
-        //    {
-        //        case 0: return NLog.LogLevel.Fatal;
-        //        case 1: return NLog.LogLevel.Error;
-        //        case 2: return NLog.LogLevel.Warn;
-        //        case 3: return NLog.LogLevel.Info;
-        //        case 4: return NLog.LogLevel.Debug;
-        //        default: return NLog.LogLevel.Trace;
-        //    }
-        //}
+
+
+        public static void Msg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            LogMessage(new LogMsg(loglevel, msg, memberName, sourceFilePath, sourceLineNumber));
+        }
+
+        public static void LogMessage(LogMsg msg)
+        {
+            LogLevel TranslateLogLevel(int lvl)
+            {
+                switch (lvl)
+                {
+                    case 0: return LogLevel.Critical;
+                    case 1: return LogLevel.Error;
+                    case 2: return LogLevel.Warning;
+                    case 3: return LogLevel.Information;
+                    case 4: return LogLevel.Debug;
+                    default: return LogLevel.Trace;
+                }
+            }
+
+            if (ShouldLog(msg.LogLevel))
+            {
+                ConsoleLog(msg);
+
+                if (Instance?.logger != null)
+                {
+                    LogLevel zlvl = TranslateLogLevel(msg.LogLevel);
+                    Instance.logger.Log(zlvl, $"hello world");
+                }
+            }
+        }
+        public static bool ShouldLog(int logLevel)
+        {
+            return logLevel <= LogFilterLevel;
+        }
+
+        public static Func<LogMsg, string> FormatLog = (msg) =>
+        {
+            const string format = "HH:mm:ss.fff ";
+
+            string ts = msg.TimeStamp.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+            return $"{ts} [{msg.ThreadId}] {msg.Msg}";
+        };
+
+        public static void ConsoleLog(LogMsg msg)
+        {
+            Console.WriteLine(FormatLog(msg));
+        }
+
+
+        public static LogBlock LogContext(string? msg = null, int? level = null, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            return new LogBlock(level ?? EntryExitLogLevel, msg, null, memberName, sourceFilePath, sourceLineNumber);
+        }
+
 
         public static void Exception(Exception e, string? msg = null, bool logCallStack = true, int loglevel = 1, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
@@ -67,39 +153,6 @@ namespace ForwardUDP
             }
         }
 
-        public static void Msg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
-        {
-            LogMessage(new LogMsg(loglevel, msg, memberName, sourceFilePath, sourceLineNumber));
-        }
-
-        public static void LogMessage(LogMsg msg)
-        {
-            if (ShouldLog(msg.LogLevel))
-            {
-                ConsoleLog(msg);
-                //NLog.LogLevel nlvl = TranslateLogLevel(loglevel);
-                //logger.Log(nlvl, msg);
-            }
-        }
-        public static bool ShouldLog(int logLevel)
-        {
-            return logLevel <= LogLevel;
-        }
-
-        public static void ConsoleLog(LogMsg msg)
-        {
-            const string format = "HH:mm:ss.fff ";
-                        
-            string ts = msg.TimeStamp.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
-            Console.WriteLine($"{ts} {msg.ThreadId} {msg.Msg}");
-        }
-
-
-        public static LogBlock LogContext(string? msg = null, int? level = null, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
-        {
-            return new LogBlock(level ?? EntryExitLogLevel, msg, null, memberName, sourceFilePath, sourceLineNumber);
-        }
-
         #region Disposing
         protected virtual void Dispose(bool disposing)
         {
@@ -108,7 +161,7 @@ namespace ForwardUDP
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects)
-                //    LogManager.Shutdown();
+                    //    LogManager.Shutdown();
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
@@ -160,7 +213,7 @@ namespace ForwardUDP
 
         public LogMsg(int logLevel, string? msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
             : this(logLevel, msg, null, null, memberName, sourceFilePath, sourceLineNumber)
-        {}
+        { }
 
     }
 
@@ -185,16 +238,16 @@ namespace ForwardUDP
             watch.Reset();
         }
 
-        
+
         public LogBlock(int lvl, string textMessage, TimeSpan? longWaitLimit = null, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
-            this.watch = System.Diagnostics.Stopwatch.StartNew();
-            this.LongWaitLimit = longWaitLimit ?? LongWaitLimitStatic;
+            watch = System.Diagnostics.Stopwatch.StartNew();
+            LongWaitLimit = longWaitLimit ?? LongWaitLimitStatic;
 
             // Store enter-msg even if we don't log.
             // IF we exit on exception, then we want to know the entry-arguments
             string s = $"<--entry-- {textMessage}";
-            this.enterMsg = new LogMsg(lvl, s, memberName, sourceFilePath, sourceLineNumber);
+            enterMsg = new LogMsg(lvl, s, memberName, sourceFilePath, sourceLineNumber);
 
             Log.LogMessage(enterMsg);
         }
@@ -219,7 +272,7 @@ namespace ForwardUDP
 #pragma warning disable CS0618 // Type or member is obsolete, but use as long as we can!
                     exception_code = System.Runtime.InteropServices.Marshal.GetExceptionCode();
 #pragma warning restore CS0618 // Type or member is obsolete
-                    if (exception_code == 0 && (System.Runtime.InteropServices.Marshal.GetExceptionPointers() != IntPtr.Zero))
+                    if (exception_code == 0 && System.Runtime.InteropServices.Marshal.GetExceptionPointers() != nint.Zero)
                         exception_code = -1;
                 }
                 catch { }
@@ -234,9 +287,9 @@ namespace ForwardUDP
             }
 
 
-            int exitLevel = (int)Math.Max(0, (int)lvl - lvl_inc);
+            int exitLevel = Math.Max(0, lvl - lvl_inc);
 
-            System.Text.StringBuilder s = new System.Text.StringBuilder();
+            StringBuilder s = new StringBuilder();
             s.Append("--Exit--> ");
             if (elapsed < TimeSpan.FromMinutes(1))
             {

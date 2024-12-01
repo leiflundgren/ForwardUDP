@@ -56,92 +56,114 @@ namespace ForwardUDP
             );            
         }
 
-        public Task RunAsync()
+        public Task RunAsync(CancellationToken stoppingToken)
         {
-            return RecieveData();
+            return RecieveData(stoppingToken);
         }
 
-        private async Task RecieveData()
+        private async Task RecieveData(CancellationToken stoppingToken)
         {
-            List<Target> sockets = new List<Target> { this.local };
-            sockets.AddRange(this.targets);
-
-            if (this.local.socket is null) throw new ArgumentNullException("Local socket not initialized");
-            this.local.ReceiveTask = this.local.socket.ReceiveAsync();
-
-            Log.Msg(4, $"Listening to {local.Local}");
-
-            for (; ; )
+            while (!stoppingToken.IsCancellationRequested)
             {
-
-                Task<UdpReceiveResult>? readTask = await Task.WhenAny(sockets.ConvertAll(t=>t.ReceiveTask).NonNull());
-                int idx = sockets.FindIndex(t => ReferenceEquals(readTask, t.ReceiveTask));
-
-                Target readSocket = sockets[idx];
-                if (readSocket.socket is null) throw new ArgumentNullException("Read from socket that was null. Impossible!");
-
-                IPEndPoint recv_from;
-                int recv_bytes;
-                byte[] buf;
                 try
                 {
-                    UdpReceiveResult read = readTask.Result;
-                    recv_from = read.RemoteEndPoint;
-                    recv_bytes = read.Buffer.Length;
-                    buf = read.Buffer;
 
-                    readSocket.Remote = recv_from;
+                    List<Target> sockets = new List<Target> { this.local };
+                    this.targets.ForEach(t => t.ReceiveTask = never_complet.Task);
+                    sockets.AddRange(this.targets);
+
+                    if (this.local.socket is null) throw new ArgumentNullException("Local socket not initialized");
+                    this.local.ReceiveTask = this.local.socket.ReceiveAsync();
+
+                    Log.Msg(4, $"Listening to {local.Local}");
+
+                    for (; ; )
+                    {
+
+                        Task<UdpReceiveResult>? readTask = await Task.WhenAny(sockets.ConvertAll(t=>t.ReceiveTask).NonNull());
+                        int idx = sockets.FindIndex(t => ReferenceEquals(readTask, t.ReceiveTask));
+
+                        Target readSocket = sockets[idx];
+                        if (readSocket.socket is null) throw new ArgumentNullException("Read from socket that was null. Impossible!");
+
+                        IPEndPoint recv_from;
+                        int recv_bytes;
+                        byte[] buf;
+                        try
+                        {
+                            UdpReceiveResult read = readTask.Result;
+                            recv_from = read.RemoteEndPoint;
+                            recv_bytes = read.Buffer.Length;
+                            buf = read.Buffer;
+
+                            readSocket.Remote = recv_from;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Exception(ex, $"Failed to receive data. Terminating", false, 2);
+                            break;
+                        }
+
+
+                        // new read-task, since previous completed
+                        readSocket.ReceiveTask = readSocket.socket.ReceiveAsync();
+
+                        Log.Msg(4, $"Received {recv_bytes} bytes from {recv_from}");
+
+                        List<Target> send_to = idx!=0 ? new List<Target> { local } : this.targets;
+
+                        foreach (Target target in send_to)
+                        {
+                            SendToTarget(recv_bytes, buf, target);
+                        }
+
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Log.Exception(ex, $"Failed to receive data. Terminating", false, 2);
-                    break;
+                    Log.Exception(ex, "Failure, restarting ");
                 }
+            }
+        }
 
+        private void SendToTarget(int recv_bytes, byte[] buf, Target target)
+        {
+            IPEndPoint targetEP = target.Remote ?? throw new ArgumentException("Remote was not set on a target");
 
-                // new read-task, since previous completed
-                readSocket.ReceiveTask = readSocket.socket.ReceiveAsync();
+            Log.Msg(6, $"sending {recv_bytes} bytes to {target} --> {targetEP}");
+            try
+            {
+                if (target.socket == null)
+                    target.socket = new UdpClient(0, targetEP.AddressFamily);
+            }
+            catch (Exception ex)
+            {
+                Log.Exception(ex, $"Failed to create UDpClient({targetEP}). Removing target!", logCallStack: false);
+                targets.Remove(target);
+                return;
+            }
 
-                Log.Msg(4, $"Received {recv_bytes} bytes from {recv_from}");
+            try
+            {
+                target.socket.Send(buf, recv_bytes, targetEP);
+            }
+            catch (Exception ex)
+            {
+                Log.Exception(ex, $"Failed to send data to {target}", logCallStack: !(ex is SocketException));
+            }
 
-                List<Target> send_to = idx!=0 ? new List<Target> { local } : this.targets;
-
-                foreach ( Target target in send_to )
-                {
-                    try
-                    {
-                        IPEndPoint targetEP = target.Remote ?? throw new ArgumentException("Remote was not set on a target");
-
-                        Log.Msg(6, $"sending {recv_bytes} bytes to {target} --> {targetEP}");
-
-                        if (target.socket == null)
-                            target.socket = new UdpClient(0, targetEP.AddressFamily);
-                        bool was_bound = target.socket.Client.IsBound;
-
-                        target.socket.Send(buf, recv_bytes, targetEP);
-
-                        if (target.ReceiveTask is null)
-                        {
-                            Log.Msg(1, $"Target {target} had no ReceiveTask!");
-                        }
-                        else if (target.socket.Client.IsBound && (target.ReceiveTask == never_complet.Task || target.ReceiveTask.IsCompleted))
-                        {
-                            Log.Msg(7, $"Starting receive on {target}");
-                            target.ReceiveTask = target.socket.ReceiveAsync();
-                        }
-                        else
-                        {
-                            Log.Msg(7, $"Already ongoing receive on {target}, task {target.ReceiveTask.Id} state {target.ReceiveTask.Status} ");
-                        }
-
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Exception(ex, $"Failed to send data to {target}", logCallStack:!(ex is SocketException));
-                    }
-
-                }
-
+            if (target.ReceiveTask is null)
+            {
+                Log.Msg(1, $"Target {target} had no ReceiveTask!");
+            }
+            else if (target.socket.Client.IsBound && (target.ReceiveTask == never_complet.Task || target.ReceiveTask.IsCompleted))
+            {
+                Log.Msg(7, $"Starting receive on {target}");
+                target.ReceiveTask = target.socket.ReceiveAsync();
+            }
+            else
+            {
+                Log.Msg(7, $"Already ongoing receive on {target}, task {target.ReceiveTask.Id} state {target.ReceiveTask.Status} ");
             }
         }
 

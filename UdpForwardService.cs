@@ -32,7 +32,7 @@ namespace ForwardUDP
             using (FwdUDP forwarder = new FwdUDP(listenTo, targets))
             using (var ctx = Log.LogContext("Running service", 3))
             {
-                Task runFwd = forwarder.RunAsync();
+                Task runFwd = forwarder.RunAsync(stoppingToken);
                 Task stopTask = Task.Delay(Timeout.Infinite, stoppingToken);
                 if ( stopTask == await Task.WhenAny(runFwd, stopTask) )
                 {

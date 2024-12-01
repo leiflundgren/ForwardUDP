@@ -18,30 +18,55 @@ namespace ForwardUDP
             try
             {
                 IConfigurationRoot config = new ConfigurationBuilder()
-                .AddJsonFile("appsettings.json")
-                .AddEnvironmentVariables()
-                .Build();
-                Settings settings = config.GetRequiredSection("Settings").Get<Settings>() ?? new Settings();
+                    .AddJsonFile("appsettings.json")
+                    //.AddEnvironmentVariables()
+                    .Build();
 
+                //Settings settings = new Settings();
+                // IConfigurationSection section = config.GetSection("Settings");
+                //Settings? settings_null = section.Get<Settings>();
+                //config.Bind("Settings", settings);
 
-                bool run_console = args.GetCommandLineArg("debug") != null || args.GetCommandLineArg("console") != null;
+                //Settings settings = settings_null ?? new Settings();
 
-                settings.LogPath = args.GetCommandLineArg("logpath") ?? System.Environment.GetEnvironmentVariable("TEMP") ?? settings.LogPath;
+                Settings settings = new Settings();
 
-                settings.LogLevel = int.TryParse(args.GetCommandLineArg("loglevel"), out int loglevel) ? loglevel : settings.LogLevel;
 
                 string? local = args.GetCommandLineArg("local");
                 string? target = args.GetCommandLineArg("target");
+
                 if (local is not null && IPEndPoint.TryParse(local, out IPEndPoint? _))
                     settings.Local = local;
+                else
+                    settings.Local = config.GetSection("Settings:Local").Value;
+
                 if (target is not null && IPEndPoint.TryParse(target, out IPEndPoint? _))
                     settings.Targets = [target];
+                else
+                {
+                    IConfigurationSection configTargets = config.GetSection("Settings:Targets");
+                    List<string>? targets = configTargets.GetChildren().ToList().ConvertAll(s => s.Value).NonNull();
+                    settings.Targets = targets.ToArray();
+                }
+
+
+                string? lvl_str = args.GetCommandLineArg("loglevel") ?? config.GetSection("Settings:LogLevel").Value;
+                if (int.TryParse(lvl_str, out int loglevel))
+                    settings.LogLevel = loglevel;
+
+                settings.LogPath = args.GetCommandLineArg("logpath") ?? config.GetSection("Settings:LogPath").Value ?? System.Environment.GetEnvironmentVariable("TEMP");
+
+                bool run_console = args.GetCommandLineArg("debug") != null || args.GetCommandLineArg("console") != null;
+
 
                 if (settings.Local is null) throw new ArgumentException("Local not specified/invalid IP");
                 if (settings.Targets is null || settings.Targets.Length == 0) throw new ArgumentException("Targets not specified/invalid IP");
 
 
-                Log.LogLevel = loglevel;
+
+                Log.Init(loglevel, "ForwardUDP", settings.LogPath);
+
+                Log.Msg(3, "Logging started");
 
                 UdpForwardService service = new UdpForwardService(settings);
 
@@ -51,7 +76,7 @@ namespace ForwardUDP
                     {
                         void Console_CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
                         {
-                            Log.Msg(3, "Cancel key press detected, setting event to terminte proccess. ");
+                            Log.Msg(3, "Cancel key press detected, setting event to terminate process. ");
                             ms_exitEvent.Set();
                         }
 
@@ -63,7 +88,6 @@ namespace ForwardUDP
                         Log.Msg(3, "Waiting for event : ");
                         ms_exitEvent.WaitOne();
 
-                        Console.CancelKeyPress -= Console_CancelKeyPress;
                         Log.Msg(4, "Stopping service by cancelling token");
                         cts.CancelAsync().Forget(TimeSpan.FromSeconds(20));
                     }
