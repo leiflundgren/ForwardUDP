@@ -41,11 +41,11 @@ namespace ForwardUDP
         {
             if (listenTo is null) throw new ArgumentNullException(nameof(listenTo));
             if (targets is null) throw new ArgumentNullException(nameof(targets));
-            if ( targets.Count == 0) throw new ArgumentOutOfRangeException(nameof(targets));
+            if (targets.Count == 0) throw new ArgumentOutOfRangeException(nameof(targets));
 
 
             this.local = new Target { Local = listenTo, socket = new UdpClient(listenTo), IsServer = true };
-            this.targets = targets.ToList().ConvertAll(ep => 
+            this.targets = targets.ToList().ConvertAll(ep =>
                 new Target
                 {
                     Remote = ep,
@@ -53,10 +53,12 @@ namespace ForwardUDP
                     ReceiveTask = never_complet.Task,
                     IsServer = false,
                 }
-            );
+            );            
+        }
 
-
-            RecieveData().Forget();
+        public Task RunAsync()
+        {
+            return RecieveData();
         }
 
         private async Task RecieveData()

@@ -8,38 +8,37 @@ namespace ForwardUDP.Components
 {
     public static class TaskExtensionsTas
     {
-        public static void Forget(this Task task)
+        public static void Forget(this Task task, string? msg = null, bool logCallStack = true, int loglevel = 1)
         {
-            task.Forget(TimeSpan.Zero);
+            Forget(task, TimeSpan.Zero, msg, logCallStack, loglevel);
         }
-        public static void Forget(this Task task, TimeSpan waitBeforeForgetting)
+        public static void Forget(this Task task, TimeSpan waitBeforeForgetting, string? msg = null, bool logCallStack = true, int loglevel = 1)
         {
+            static void LogException(Exception? e, string msg)
+            {
+                if (e is not null)
+                {
+                    if (e is AggregateException && e.InnerException is not null)
+                        e = e.InnerException;
+
+                    Log.Exception(e, msg);
+                }
+            }
+            
             if (task == null)
                 return;
 
+            msg = msg ?? $"Explicitly forgotten task {task.Id}";
+
             if (waitBeforeForgetting > TimeSpan.Zero && !task.IsCompleted && task.Wait(waitBeforeForgetting))
             {
-                if (task.IsFaulted && task.Exception != null)
-                {
-                    if (task.Exception is AggregateException && task.Exception.InnerException != null)
-                        Log.Exception(task.Exception.InnerException, "Explicitly forgotten task " + task.Id);
-                    else
-                        Log.Exception(task.Exception, "Explicitly forgotten task " + task.Id);
-                }
+                if (task.IsFaulted )
+                    LogException(task.Exception, msg);
             }
             else
             {
                 task.ContinueWith(
-                    t =>
-                    {
-                        if (t.Exception is null)
-                        {}
-                        else if (t.Exception is AggregateException && t.Exception?.InnerException != null)
-                            Log.Exception(t.Exception.InnerException, "Explicitly forgotten task " + t.Id);
-                        else
-                            Log.Exception(t.Exception, "Explicitly forgotten task " + t.Id);
-                    },
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    t => LogException(t.Exception, msg), TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 

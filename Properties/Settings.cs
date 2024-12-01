@@ -12,7 +12,7 @@ namespace ForwardUDP.Properties
 
         public string? Local;
         public string[]? Targets;
-        public int LogLevel;
+        public int LogLevel = 3;
         public string? LogPath;
     }
 }
