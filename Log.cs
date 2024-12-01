@@ -1,5 +1,4 @@
-﻿using NLog;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,34 +12,32 @@ namespace ForwardUDP
         public static int LogLevel = 5;
 
 
-        private static Logger logger;
         private bool disposedValue;
 
         public static void Init()
         {
-            logger = LogManager.GetCurrentClassLogger();
             
         }
 
-        public static NLog.LogLevel TranslateLogLevel(int lvl)
-        {
-            switch (lvl)
-            {
-                case 0: return NLog.LogLevel.Fatal;
-                case 1: return NLog.LogLevel.Error;
-                case 2: return NLog.LogLevel.Warn;
-                case 3: return NLog.LogLevel.Info;
-                case 4: return NLog.LogLevel.Debug;
-                default: return NLog.LogLevel.Trace;
-            }
-        }
+        //public static NLog.LogLevel TranslateLogLevel(int lvl)
+        //{
+        //    switch (lvl)
+        //    {
+        //        case 0: return NLog.LogLevel.Fatal;
+        //        case 1: return NLog.LogLevel.Error;
+        //        case 2: return NLog.LogLevel.Warn;
+        //        case 3: return NLog.LogLevel.Info;
+        //        case 4: return NLog.LogLevel.Debug;
+        //        default: return NLog.LogLevel.Trace;
+        //    }
+        //}
 
-        public static void Exception(Exception e, string msg = null, bool logCallStack = true, int loglevel = 1, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+        public static void Exception(Exception e, string? msg = null, bool logCallStack = true, int loglevel = 1, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
         {
             if (ShouldLog(loglevel))
             {
                 var a = e as AggregateException;
-                if (a != null && a.InnerExceptions.Count == 1)
+                if (a != null && a.InnerException != null && a.InnerExceptions.Count == 1)
                     e = a.InnerException;
 
                 StringBuilder sb = new StringBuilder();
@@ -51,7 +48,7 @@ namespace ForwardUDP
                     sb.AppendLine();
                 }
 
-                for (Exception e0 = e; e0 != null; e0 = e0.InnerException)
+                for (Exception? e0 = e; e0 != null; e0 = e0.InnerException)
                 {
                     sb.Append(e0.GetType().Name);
                     sb.Append(' ');
@@ -70,8 +67,8 @@ namespace ForwardUDP
             if (ShouldLog(loglevel))
             {
                 ConsoleLog(msg, loglevel, memberName, sourceFilePath, sourceLineNumber);
-                NLog.LogLevel nlvl = TranslateLogLevel(loglevel);
-                logger.Log(nlvl, msg);
+                //NLog.LogLevel nlvl = TranslateLogLevel(loglevel);
+                //logger.Log(nlvl, msg);
             }
         }
 
@@ -95,7 +92,7 @@ namespace ForwardUDP
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects)
-                    LogManager.Shutdown();
+                //    LogManager.Shutdown();
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer

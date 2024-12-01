@@ -21,7 +21,7 @@ namespace ForwardUDP.Components
             {
                 if (task.IsFaulted && task.Exception != null)
                 {
-                    if (task.Exception is AggregateException)
+                    if (task.Exception is AggregateException && task.Exception.InnerException != null)
                         Log.Exception(task.Exception.InnerException, "Explicitly forgotten task " + task.Id);
                     else
                         Log.Exception(task.Exception, "Explicitly forgotten task " + task.Id);
@@ -32,7 +32,9 @@ namespace ForwardUDP.Components
                 task.ContinueWith(
                     t =>
                     {
-                        if (t.Exception is AggregateException)
+                        if (t.Exception is null)
+                        {}
+                        else if (t.Exception is AggregateException && t.Exception?.InnerException != null)
                             Log.Exception(t.Exception.InnerException, "Explicitly forgotten task " + t.Id);
                         else
                             Log.Exception(t.Exception, "Explicitly forgotten task " + t.Id);

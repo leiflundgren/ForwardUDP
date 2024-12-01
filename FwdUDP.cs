@@ -14,11 +14,11 @@ namespace ForwardUDP
 
         private class Target
         {
-            public IPEndPoint Local;
-            public IPEndPoint Remote;
-            public UdpClient socket;
-            public bool IsServer;
-            public Task<UdpReceiveResult> ReceiveTask;
+            public IPEndPoint? Local;
+            public IPEndPoint? Remote;
+            public UdpClient? socket;
+            public required bool IsServer;
+            public Task<UdpReceiveResult>? ReceiveTask;
 
             public override string ToString()
             {
@@ -64,6 +64,7 @@ namespace ForwardUDP
             List<Target> sockets = new List<Target> { this.local };
             sockets.AddRange(this.targets);
 
+            if (this.local.socket is null) throw new ArgumentNullException("Local socket not initialized");
             this.local.ReceiveTask = this.local.socket.ReceiveAsync();
 
             Log.Msg(4, $"Listening to {local.Local}");
@@ -71,10 +72,11 @@ namespace ForwardUDP
             for (; ; )
             {
 
-                Task<UdpReceiveResult> readTask = await Task.WhenAny(sockets.ConvertAll(t=>t.ReceiveTask));
+                Task<UdpReceiveResult>? readTask = await Task.WhenAny(sockets.ConvertAll(t=>t.ReceiveTask).NonNull());
                 int idx = sockets.FindIndex(t => ReferenceEquals(readTask, t.ReceiveTask));
 
                 Target readSocket = sockets[idx];
+                if (readSocket.socket is null) throw new ArgumentNullException("Read from socket that was null. Impossible!");
 
                 IPEndPoint recv_from;
                 int recv_bytes;
@@ -106,18 +108,21 @@ namespace ForwardUDP
                 {
                     try
                     {
-                        IPEndPoint targetEP = target.Remote;
+                        IPEndPoint targetEP = target.Remote ?? throw new ArgumentException("Remote was not set on a target");
 
                         Log.Msg(6, $"sending {recv_bytes} bytes to {target} --> {targetEP}");
 
                         if (target.socket == null)
                             target.socket = new UdpClient(0, targetEP.AddressFamily);
                         bool was_bound = target.socket.Client.IsBound;
-                        bool was_completed = target.ReceiveTask.IsCompleted;
 
                         target.socket.Send(buf, recv_bytes, targetEP);
 
-                        if (target.socket.Client.IsBound && (target.ReceiveTask == never_complet.Task || target.ReceiveTask.IsCompleted))
+                        if (target.ReceiveTask is null)
+                        {
+                            Log.Msg(1, $"Target {target} had no ReceiveTask!");
+                        }
+                        else if (target.socket.Client.IsBound && (target.ReceiveTask == never_complet.Task || target.ReceiveTask.IsCompleted))
                         {
                             Log.Msg(7, $"Starting receive on {target}");
                             target.ReceiveTask = target.socket.ReceiveAsync();
@@ -146,7 +151,7 @@ namespace ForwardUDP
 
                 if (disposing)
                 {
-                    try { local.socket.Close(); } catch { }
+                    try { local?.socket?.Close(); } catch { }
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer

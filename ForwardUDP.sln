@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35431.28
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForwardUDP", "ForwardUDP.csproj", "{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForwardUDP", "ForwardUDP.csproj", "{3FF69AAD-3A03-4ED9-BD7F-EAD186614102}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{ABDDC487-1ACD-47F0-BC0B-6750C9C69548}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3FF69AAD-3A03-4ED9-BD7F-EAD186614102}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3FF69AAD-3A03-4ED9-BD7F-EAD186614102}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3FF69AAD-3A03-4ED9-BD7F-EAD186614102}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3FF69AAD-3A03-4ED9-BD7F-EAD186614102}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {BC1D95FB-84C4-4CCA-9B5A-AE7CFD08F3A1}
+		SolutionGuid = {DCCD17E0-1A6A-42DF-BD8F-E0C706C414C7}
 	EndGlobalSection
 EndGlobal
