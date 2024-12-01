@@ -22,6 +22,8 @@ namespace ForwardUDP
 
             bool run_console = args.GetCommandLineArg("debug") != null || args.GetCommandLineArg("console") != null;
 
+            string logpath = args.GetCommandLineArg("logpath");
+
             int loglevel;
             if ( !int.TryParse(args.GetCommandLineArg("loglevel"), out loglevel) )
                 loglevel = 7;

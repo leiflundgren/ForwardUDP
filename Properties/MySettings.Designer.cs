@@ -46,5 +46,29 @@ namespace ForwardUDP.Properties {
                 this["Local"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("%TEMP%")]
+        public string LogPath {
+            get {
+                return ((string)(this["LogPath"]));
+            }
+            set {
+                this["LogPath"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("5")]
+        public int LogLevel {
+            get {
+                return ((int)(this["LogLevel"]));
+            }
+            set {
+                this["LogLevel"] = value;
+            }
+        }
     }
 }

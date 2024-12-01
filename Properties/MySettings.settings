@@ -8,5 +8,11 @@
     <Setting Name="Local" Type="System.String" Scope="User">
       <Value Profile="(Default)">[::1]:53</Value>
     </Setting>
+    <Setting Name="LogPath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">%TEMP%</Value>
+    </Setting>
+    <Setting Name="LogLevel" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">5</Value>
+    </Setting>
   </Settings>
 </SettingsFile>
