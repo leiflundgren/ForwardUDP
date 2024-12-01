@@ -1,9 +1,13 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualBasic;
-using ZLogger;
+using NLog;
+using NLog.Extensions.Logging;
+using MSLogLevel = Microsoft.Extensions.Logging.LogLevel;
+using NLogLevel = NLog.LogLevel;
 
 namespace ForwardUDP.Components
 {
@@ -18,43 +22,42 @@ namespace ForwardUDP.Components
 
         private bool disposedValue;
         private Microsoft.Extensions.Logging.ILogger? logger;
+        private NLog.Targets.FileTarget? logfile;
 
         private static Log? Instance;
 
-        public static void Init(int loglevel, string logname, string? logPath)
+        public static void Init(int loglevel, string logname, string? logPath, bool LogConsole)
         {
             Instance = new Log();
 
             Instance.logFilterLevel = loglevel;
 
-            using var factory = LoggerFactory.Create(logging =>
+            Instance.logger = LoggerFactory.Create(builder => builder.AddNLog()).CreateLogger(logname);
+            Instance.logger.LogInformation("Program has started.");
+
+            var config = new NLog.Config.LoggingConfiguration();
+
+            // Targets where to log to: File and Console
+            Instance.logfile = new NLog.Targets.FileTarget("logfile") 
+            { 
+                FileName = Path.Combine(logPath, $"{logname}.txt"), 
+                MaxArchiveDays = 15, 
+                ArchiveDateFormat = "yyMMdd",
+            };
+            config.AddRule(NLogLevel.Trace, NLogLevel.Fatal, Instance.logfile);
+
+            // Rules for mapping loggers to targets            
+            if (LogConsole)
             {
-                logging.SetMinimumLevel(LogLevel.Trace);
+                var logconsole = new NLog.Targets.ConsoleTarget("logconsole");
+                config.AddRule(NLogLevel.Trace, NLogLevel.Fatal, logconsole);
+            }
 
-                // Add ZLogger provider to ILoggingBuilder
-                logging.AddZLoggerConsole();
+            // Apply config           
+            NLog.LogManager.Configuration = config;
 
-                // Output Structured Logging, setup options
-                // logging.AddZLoggerConsole(options => options.UseJsonFormatter());
 
-                logging.AddZLoggerRollingFile(options =>
-                 {
-                     // File name determined by parameters to be rotated
-                     options.FilePathSelector = (timestamp, sequenceNumber) => Path.Combine(logPath, $"{logname}_{timestamp.ToLocalTime():yyMMdd}_{sequenceNumber:000}.log");
-
-                     // The period of time for which you want to rotate files at time intervals.
-                     options.RollingInterval = ZLogger.Providers.RollingInterval.Day;
-
-                     // Limit of size if you want to rotate by file size. (KB)
-                     options.RollingSizeKB = 100*1024;
-                     options.CaptureThreadInfo = true;
-                 });
-            });
-
-            Instance.logger = factory.CreateLogger("Program");
-
-            bool be = Instance.logger.IsEnabled(LogLevel.Error);
-            bool bt = Instance.logger.IsEnabled(LogLevel.Trace);
+            Instance.logger.LogInformation("Logging started");
         }
 
         public static void Shutdown()
@@ -62,39 +65,40 @@ namespace ForwardUDP.Components
             if (Instance is null) return;
             if (Instance.logger is null) return;
 
-            
+            if ( Instance.logfile is not null) 
+                Instance.logfile.Dispose();
+
+
         }
 
 
-
-        public static void Msg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
-        {
-            LogMessage(new LogMsg(loglevel, msg, memberName, sourceFilePath, sourceLineNumber));
-        }
 
         public static void LogMessage(LogMsg msg)
         {
-            LogLevel TranslateLogLevel(int lvl)
+            MSLogLevel TranslateLogLevel(int lvl)
             {
-                switch (lvl)
-                {
-                    case 0: return LogLevel.Critical;
-                    case 1: return LogLevel.Error;
-                    case 2: return LogLevel.Warning;
-                    case 3: return LogLevel.Information;
-                    case 4: return LogLevel.Debug;
-                    default: return LogLevel.Trace;
-                }
+                int ord = Math.Max(0, (int)MSLogLevel.Critical- lvl);
+                return (MSLogLevel)ord;
+                //switch (lvl)
+                //{
+                //    case 0: return LogLevel.Fatal;
+                //    case 1: return LogLevel.Error;
+                //    case 2: return LogLevel.Warning;
+                //    case 3: return LogLevel.Information;
+                //    case 4: return LogLevel.Debug;
+                //    default: return LogLevel.Trace;
+                //}
             }
 
             if (ShouldLog(msg.LogLevel))
             {
-                ConsoleLog(msg);
+                // ConsoleLog(msg);
 
                 if (Instance?.logger != null)
                 {
-                    LogLevel zlvl = TranslateLogLevel(msg.LogLevel);
-                    Instance.logger.Log(zlvl, $"hello world");
+                    MSLogLevel mslvl = TranslateLogLevel(msg.LogLevel);
+                    string s = FormatLog(msg);
+                    Instance.logger.Log(mslvl, s);
                 }
             }
         }
@@ -103,12 +107,19 @@ namespace ForwardUDP.Components
             return logLevel <= LogFilterLevel;
         }
 
+
+        public static void Msg(int loglevel, string msg, [CallerMemberName] string memberName = "", [CallerFilePath] string sourceFilePath = "", [CallerLineNumber] int sourceLineNumber = 0)
+        {
+            LogMessage(new LogMsg(loglevel, msg, memberName, sourceFilePath, sourceLineNumber));
+        }
+
+
         public static Func<LogMsg, string> FormatLog = (msg) =>
         {
-            const string format = "HH:mm:ss.fff ";
+            //const string format = "HH:mm:ss.fff ";
 
-            string ts = msg.TimeStamp.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
-            return $"{ts} [{msg.ThreadId}] {msg.Msg}";
+            //string ts = msg.TimeStamp.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+            return $"[{msg.ThreadId}] | {msg.CallerMemberName} {msg.Msg} |{Path.GetFileName(msg.CallerFilePath)}:{msg.CallerLineNumber}";
         };
 
         public static void ConsoleLog(LogMsg msg)

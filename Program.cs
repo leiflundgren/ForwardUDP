@@ -3,9 +3,12 @@ using ForwardUDP.Properties;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
+using NLog.Extensions.Logging;
 using System.Net;
+using System.Text;
 namespace ForwardUDP
 {
     internal static class Program
@@ -18,7 +21,7 @@ namespace ForwardUDP
             try
             {
                 IConfigurationRoot config = new ConfigurationBuilder()
-                    .AddJsonFile("appsettings.json")
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                     //.AddEnvironmentVariables()
                     .Build();
 
@@ -64,11 +67,14 @@ namespace ForwardUDP
 
 
 
-                Log.Init(loglevel, "ForwardUDP", settings.LogPath);
+                Log.Init(loglevel, "ForwardUDP", settings.LogPath, run_console);
 
                 Log.Msg(3, "Logging started");
 
                 UdpForwardService service = new UdpForwardService(settings);
+
+
+
 
                 if (run_console)
                 {
@@ -94,6 +100,18 @@ namespace ForwardUDP
                 }
                 else
                 {
+
+
+                    using var servicesProvider = new ServiceCollection()
+                      .AddHostedService((p) => service) // Runner is the custom class
+                      .AddLogging(loggingBuilder =>
+                      {
+                          // configure Logging with NLog
+                          loggingBuilder.ClearProviders();
+                          loggingBuilder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+                          loggingBuilder.AddNLog(config);
+                      }).BuildServiceProvider();
+
                     HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
                     builder.Services.AddWindowsService(options =>
                     {
