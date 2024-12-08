@@ -40,7 +40,7 @@ namespace ForwardUDP.Components
             // Targets where to log to: File and Console
             Instance.logfile = new NLog.Targets.FileTarget("logfile") 
             { 
-                FileName = Path.Combine(logPath, $"{logname}.txt"), 
+                FileName = Path.Combine(logPath, logname+"_${shortdate}.txt"), 
                 MaxArchiveDays = 15, 
                 ArchiveDateFormat = "yyMMdd",
             };
