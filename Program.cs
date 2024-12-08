@@ -65,6 +65,7 @@ namespace ForwardUDP
                 if (settings.Local is null) throw new ArgumentException("Local not specified/invalid IP");
                 if (settings.Targets is null || settings.Targets.Length == 0) throw new ArgumentException("Targets not specified/invalid IP");
 
+                settings.DataType = args.GetCommandLineArg("datatype") ?? config.GetSection("Settings:DataType").Value;
 
 
                 Log.Init(loglevel, "ForwardUDP", settings.LogPath, run_console);

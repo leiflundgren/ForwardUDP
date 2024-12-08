@@ -11,6 +11,24 @@ namespace ForwardUDP
 {
     public class FwdUDP : IDisposable
     {
+        [System.Diagnostics.DebuggerDisplay("{DataLen} bytes {Sender} -> {Destination}")]
+        public class UDPFwdArgs : EventArgs
+        {
+            public required IPEndPoint Sender;
+            public required IPEndPoint? Destination;
+            public required byte[] Data;
+            public required int DataLen;
+        }
+
+        /// <summary>
+        /// Event delegate
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="args"></param>
+        /// <returns>True to honor the request</returns>
+        public delegate void DataReceivedEventHandler(object sender, UDPFwdArgs args);
+
+        public event DataReceivedEventHandler? DataReceived;
 
         private class Target
         {
@@ -26,10 +44,12 @@ namespace ForwardUDP
             }
         }
 
-        private List<Target> targets;
-        
+        public IPEndPoint Local => local.Local ?? throw new ArgumentNullException($"{nameof(local)} is not allowed to be null");
+        public List<IPEndPoint?> Targets => targets.ConvertAll(t => t.Remote);
 
         private Target local;
+        private List<Target> targets;
+
         private bool disposedValue;
         private readonly TaskCompletionSource<UdpReceiveResult> never_complet = new TaskCompletionSource<UdpReceiveResult>();
 
@@ -84,7 +104,7 @@ namespace ForwardUDP
                         int idx = sockets.FindIndex(t => ReferenceEquals(readTask, t.ReceiveTask));
 
                         Target readSocket = sockets[idx];
-                        if (readSocket.socket is null) throw new ArgumentNullException("Read from socket that was null. Impossible!");
+                        if (readSocket?.socket is null) throw new ArgumentNullException("Read from socket that was null. Impossible!");
 
                         IPEndPoint recv_from;
                         int recv_bytes;
@@ -110,6 +130,10 @@ namespace ForwardUDP
 
                         Log.Msg(4, $"Received {recv_bytes} bytes from {recv_from}");
 
+                       
+                        UDPFwdArgs args = new UDPFwdArgs { Data = buf, DataLen = recv_bytes, Sender = recv_from, Destination = readSocket.Local };
+                        DataReceived?.Invoke(this, args);
+                       
                         List<Target> send_to = idx!=0 ? new List<Target> { local } : this.targets;
 
                         foreach (Target target in send_to)
@@ -167,6 +191,8 @@ namespace ForwardUDP
             }
         }
 
+        #region IDisposable
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -175,7 +201,7 @@ namespace ForwardUDP
 
                 if (disposing)
                 {
-                    try { local?.socket?.Close(); } catch { }
+                    DataReceived = delegate { };
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
@@ -196,5 +222,6 @@ namespace ForwardUDP
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
+        #endregion
     }
 }

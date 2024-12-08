@@ -14,5 +14,6 @@ namespace ForwardUDP.Properties
         public string[]? Targets;
         public int LogLevel = 3;
         public string? LogPath;
+        public string? DataType;
     }
 }
