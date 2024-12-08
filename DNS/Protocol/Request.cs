@@ -7,7 +7,9 @@ using DNS.Protocol.ResourceRecords;
 
 namespace DNS.Protocol {
     public class Request : IRequest {
+#pragma warning disable SYSLIB0023 // Type or member is obsolete
         private static readonly RandomNumberGenerator RANDOM = new RNGCryptoServiceProvider();
+#pragma warning restore SYSLIB0023 // Type or member is obsolete
 
         private IList<Question> questions;
         private Header header;

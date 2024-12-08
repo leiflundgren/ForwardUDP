@@ -8,7 +8,7 @@ namespace DNS.Protocol.Marshalling {
         private static byte[] ConvertEndian<T>(byte[] data) {
             Type type = typeof(T);
             FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            EndianAttribute endian = null;
+            EndianAttribute? endian = null;
 
             if (type.GetTypeInfo().IsDefined(typeof(EndianAttribute), false)) {
                 endian = (EndianAttribute) type.GetTypeInfo().GetCustomAttributes(typeof(EndianAttribute), false).First();

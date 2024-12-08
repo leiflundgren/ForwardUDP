@@ -15,15 +15,17 @@ namespace DNS.Protocol.Utils {
             return StringifyObject(obj);
         }
 
-        private static string StringifyObject(object obj) {
-            if (obj is string) {
+        private static string StringifyObject(object? obj) {
+            if (obj is null)
+                return "null";
+            else if (obj is string) {
                 return (string) obj;
             } else if (obj is IDictionary) {
                 return StringifyDictionary((IDictionary) obj);
             } else if (obj is IEnumerable) {
                 return StringifyList((IEnumerable) obj);
             } else {
-                return obj == null ? "null" : obj.ToString();
+                return obj.ToString() ?? "null";
             }
         }
 
@@ -71,10 +73,12 @@ namespace DNS.Protocol.Utils {
             Type type = obj.GetType();
 
             foreach (string name in names) {
-                PropertyInfo property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-                object value = property.GetValue(obj, new object[] { });
-
-                pairs.Add(name, StringifyObject(value));
+                PropertyInfo? property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+                if (property is not null)
+                {
+                    object? value = property.GetValue(obj, new object[] { });
+                    pairs.Add(name, StringifyObject(value));
+                }
             }
 
             return this;
@@ -90,7 +94,7 @@ namespace DNS.Protocol.Utils {
                 BindingFlags.Public | BindingFlags.Instance);
 
             foreach (PropertyInfo property in properties) {
-                object value = property.GetValue(obj, new object[] { });
+                object? value = property.GetValue(obj, new object[] { });
                 pairs.Add(property.Name, StringifyObject(value));
             }
 

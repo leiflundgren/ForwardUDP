@@ -7,7 +7,7 @@ namespace DNS.Protocol.Utils {
         public static async Task<T> WithCancellation<T>(this Task<T> task, CancellationToken token) {
             TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
             CancellationTokenRegistration registration = token.Register(src => {
-                ((TaskCompletionSource<bool>) src).TrySetResult(true);
+                if ( src is not null ) ((TaskCompletionSource<bool>) src).TrySetResult(true);
             }, tcs);
 
             using (registration) {

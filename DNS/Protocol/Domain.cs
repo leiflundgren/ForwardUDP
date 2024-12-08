@@ -155,7 +155,8 @@ namespace DNS.Protocol {
             return ToString(Encoding.ASCII);
         }
 
-        public int CompareTo(Domain other) {
+        public int CompareTo(Domain? other) {
+            if (other is null) return 1;
             int length = Math.Min(labels.Length, other.labels.Length);
 
             for (int i = 0; i < length; i++) {
@@ -166,7 +167,7 @@ namespace DNS.Protocol {
             return this.labels.Length - other.labels.Length;
         }
 
-        public override bool Equals(object obj) {
+        public override bool Equals(object? obj) {
             if (obj == null) {
                 return false;
             }
